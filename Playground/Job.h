@@ -26,7 +26,7 @@ struct Job
 	char data[JOB_PADDING_SIZE]; //padding
 };
 
-const u32 MAX_JOB_COUNT = 4096u;
+const u32 MAX_JOB_COUNT = 1 << 16; //1 << 12;
 static const u32 MASK = MAX_JOB_COUNT - 1u;
 
 bool IsEmptyJob(const Job* job);

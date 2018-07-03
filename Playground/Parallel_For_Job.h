@@ -6,19 +6,19 @@
 class CountSplitter
 {
 public:
-	explicit CountSplitter(unsigned int count)
+	explicit CountSplitter(u32 count)
 		: m_count(count)
 	{
 	}
 
 	template <typename T>
-	inline bool Split(unsigned int count) const
+	inline bool Split(u32 count) const
 	{
 		return (count > m_count);
 	}
 
 private:
-	unsigned int m_count;
+	u32 m_count;
 };
 
 class DataSizeSplitter
@@ -30,13 +30,13 @@ public:
 	}
 
 	template <typename T>
-	inline bool Split(unsigned int count) const
+	inline bool Split(u32 count) const
 	{
 		return (count * sizeof(T) > m_size);
 	}
 
 private:
-	unsigned int m_size;
+	u32 m_size;
 };
 
 template <typename T, typename S>

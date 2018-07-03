@@ -228,7 +228,7 @@ Job* GetJob(void)
 	if (IsEmptyJob(job))
 	{
 		// this is not a valid job because our own queue is empty, so try stealing from some other queue
-		u32 randInt = urandom(0, g_workerThreadCount - 1);
+		u32 randInt = 3;// urandom(0, g_workerThreadCount - 1);
 
 		WorkStealingQueue* stealQueue = g_workers[randInt]->queue;
 		if (stealQueue == queue)
