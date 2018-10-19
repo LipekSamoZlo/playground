@@ -58,7 +58,7 @@ inline u32 urandom(u32 min, u32 max)
 
 #define COMPILER_BARRIER _ReadWriteBarrier()
 
-#define MEMORY_BARRIER MemoryBarrier()
+#define MEMORY_BARRIER std::atomic_thread_fence(std::memory_order_seq_cst);
 
 #define L1_CACHE_LINE_SIZE 64u
 

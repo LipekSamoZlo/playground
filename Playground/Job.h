@@ -17,7 +17,7 @@ struct Job
 
 	JobFunction function;
 	Job* parent;
-	std::atomic_size_t unfinishedJobs; //atomic - job is completed when this == -1
+	std::atomic_int_fast32_t unfinishedJobs; //atomic - job is completed when this == -1
 
 	static constexpr std::size_t JOB_PAYLOAD_SIZE = sizeof(JobFunction) + sizeof(Job*) + sizeof(std::atomic_size_t);
 	static constexpr std::size_t JOB_MAX_PADDING_SIZE = L1_CACHE_LINE_SIZE;

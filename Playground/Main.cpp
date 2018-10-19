@@ -22,11 +22,11 @@ int main()
 
 		if (i != MAX_WORKER_COUNT - 1)
 		{
-			w = new Worker(std::string("Worker_") + std::to_string(i), WORKER, true);
+			w = new Worker(std::string("Worker_") + std::to_string(i), i, WORKER, true);
 		}
 		else
 		{
-			w = new Worker(std::string("Worker_MAIN"), MAIN, true);
+			w = new Worker(std::string("Worker_MAIN"), i, MAIN, true);
 		}
 
 		CreateWorker(w);
@@ -60,6 +60,12 @@ int main()
 	Run(root);
 	Wait(root);
 
+	for (int i = 0; i < MAX_WORKER_COUNT; i++)
+	{
+		Worker* w = GetWorker(i);
+		w->Stop();
+	}
+
 	PROFILE_END;
 #elif TEST == 2
 
@@ -80,7 +86,7 @@ int main()
 	Worker* w = GetWorker(MAX_WORKER_COUNT - 1);
 	std::cout << w->name << " jobs done: " << std::to_string(N - workersJobDone) << std::endl;
 
-	__debugbreak(); //all jobs are done
+	//__debugbreak(); //all jobs are done
 
 	for (int i = 0; i < MAX_WORKER_COUNT; i++)
 	{

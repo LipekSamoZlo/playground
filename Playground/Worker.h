@@ -21,11 +21,9 @@ enum EWorkerStatus
 	DESTROYED,
 };
 
-#define LOCKLESS 0
-
 struct Worker
 {
-	Worker(const std::string& _name, EWorkerAffinity _affinity, bool _suspended);
+	Worker(const std::string& _name, int id, EWorkerAffinity _affinity, bool _suspended);
 	~Worker();
 
 	std::string name;
@@ -61,16 +59,12 @@ struct WorkStealingQueue
 
 	Job* jobs[MAX_JOB_COUNT];
 
-	std::atomic<s32> bottom;
-	std::atomic<s32> top;
+	uint64_t bottom;
+	std::atomic<uint64_t> top;
 
 	void Push(Job* job);
 	Job* Pop();
 	Job* Steal();
-
-	void PushLock(Job* job);
-	Job* PopLock();
-	Job* StealLock();
 };
 
 WorkStealingQueue* GetWorkerThreadQueue();

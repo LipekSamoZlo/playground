@@ -6,8 +6,8 @@ thread_local static u32 g_allocatedJobs;
 
 Job* AllocateJob()
 {
-	const u32 index = g_allocatedJobs++;
-	Job* allocatedJob = &g_jobAllocator[(index - 1u) & (MAX_JOB_COUNT - 1u)]; //ring buffer
+	const uint64_t index = g_allocatedJobs++;
+	Job* allocatedJob = &g_jobAllocator[index & (MAX_JOB_COUNT - 1u)]; //ring buffer
 	memset(allocatedJob, 0x00, sizeof(Job));
 	return allocatedJob;
 }
@@ -36,8 +36,7 @@ Job* CreateJobAsChild(Job* parent, JobFunction function)
 
 void Finish(Job* job)
 {
-	job->unfinishedJobs--; //atomically decrement
-	const size_t unfinishedJobs = job->unfinishedJobs;
+	const int32_t unfinishedJobs = --(job->unfinishedJobs); //atomically decrement
 	if (unfinishedJobs == 0 && (job->parent))
 	{
 		Finish(job->parent);

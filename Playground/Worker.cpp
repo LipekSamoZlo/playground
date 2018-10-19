@@ -4,14 +4,16 @@
 
 static Worker* g_workers[MAX_WORKER_COUNT];
 static u16 g_workersCount = 0;
+thread_local static int worker_id = -1;
 
 void workerMain(const void* data)
 {
 	((Worker*)data)->DoJob();
 }
 
-Worker::Worker(const std::string& _name, EWorkerAffinity _affinity, bool _suspended)
+Worker::Worker(const std::string& _name, int id, EWorkerAffinity _affinity, bool _suspended)
 {
+	worker_id = id;
 	name = _name;
 	affinity = _affinity;
 	workerStatus = _suspended ? SUSPENDED : CREATED;
@@ -54,6 +56,7 @@ void Worker::Start()
 void Worker::Stop()
 {
 	workerStatus = STOPPED;
+	thread->join();
 }
 
 void Worker::DoJob()
@@ -90,17 +93,17 @@ void WorkStealingQueue::Push(Job* job)
 	// on x86/64, a compiler barrier is enough.
 	COMPILER_BARRIER;
 
-	bottom.store(b + 1, std::memory_order_release);
+	bottom = b + 1;
 }
 
 Job* WorkStealingQueue::Pop()
 {
-	s32 b = max(0, bottom - 1);
+	uint64_t b = max(0, bottom - 1);
+	bottom = b;
 
-	//std::atomic_exchange(&bottom, b);
-	bottom.store(b, std::memory_order_release);
+	MEMORY_BARRIER;
 
-	s32 t = top;
+	uint64_t t = top;
 	if (t <= b)
 	{
 		Job* job = jobs[b & MASK];
@@ -111,9 +114,7 @@ Job* WorkStealingQueue::Pop()
 		}
 
 		// this is the last item in the queue
-		s32 expected = t;
-		s32 desired = t + 1;
-		if (top.compare_exchange_weak(expected, desired, std::memory_order_acq_rel) == false)
+		if (!std::atomic_compare_exchange_strong(&top, &t, t))
 		{
 			// failed race against steal operation
 			job = nullptr;
@@ -132,24 +133,22 @@ Job* WorkStealingQueue::Pop()
 
 Job* WorkStealingQueue::Steal()
 {
-	s32 t = top;
+	uint64_t t = top;
 
 	// ensure that top is always read before bottom.
 	// loads will not be reordered with other loads on x86, so a compiler barrier is enough.
 	COMPILER_BARRIER;
 
-	s32 b = bottom;
+	uint64_t b = bottom;
 
 	if (t < b)
 	{
 		Job* job = jobs[t & MASK];
-		s32 expected = t;
-		s32 desired = t + 1;
-		if (top.compare_exchange_weak(expected, desired, std::memory_order_acq_rel) == false)
+		if (!std::atomic_compare_exchange_strong(&top, &t, t+1))
 		{
 			return nullptr;
 		}
-
+		jobs[t & MASK] = nullptr;
 		return job;
 
 	}
@@ -158,47 +157,6 @@ Job* WorkStealingQueue::Steal()
 		//empty queue
 		return nullptr;
 	}
-}
-
-std::mutex critSec;
-
-void WorkStealingQueue::PushLock(Job* job)
-{
-	std::lock_guard<std::mutex> lock(critSec);
-
-	jobs[bottom & MASK] = job;
-	++bottom;
-}
-
-Job* WorkStealingQueue::PopLock(void)
-{
-	std::lock_guard<std::mutex> lock(critSec);
-
-	const int jobCount = bottom - top;
-	if (jobCount <= 0)
-	{
-		// no job left in the queue
-		return nullptr;
-	}
-
-	--bottom;
-	return jobs[bottom & MASK];
-}
-
-Job* WorkStealingQueue::StealLock(void)
-{
-	std::lock_guard<std::mutex> lock(critSec);
-
-	const int jobCount = bottom - top;
-	if (jobCount <= 0)
-	{
-		// no job there to steal
-		return nullptr;
-	}
-
-	Job* job = jobs[top & MASK];
-	++top;
-	return job;
 }
 
 void Run(Job* job)
@@ -228,13 +186,14 @@ Job* GetJob(void)
 	if (IsEmptyJob(job))
 	{
 		// this is not a valid job because our own queue is empty, so try stealing from some other queue
-		u32 randInt = 3;// urandom(0, g_workerThreadCount - 1);
+		int victimOffset = 1 + (rand() % g_workerThreadCount - 1);
+		int victimIndex = (worker_id + victimOffset) % g_workerThreadCount;
 
-		WorkStealingQueue* stealQueue = g_workers[randInt]->queue;
+		WorkStealingQueue* stealQueue = g_workers[victimIndex]->queue;
 		if (stealQueue == queue)
 		{
 			//don't try to steal from ourselves
-			std::this_thread::yield();
+			YieldProcessor();
 			return nullptr;
 		}
 
@@ -242,7 +201,7 @@ Job* GetJob(void)
 		if (IsEmptyJob(stolenJob))
 		{
 			// we couldn't steal a job from the other queue either, so we just yield our time slice for now
-			std::this_thread::yield();
+			YieldProcessor();
 			return nullptr;
 		}
 
